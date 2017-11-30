@@ -1,0 +1,4 @@
+NAME=cam01
+PORT=5601
+USER=softioc
+HOST=xf07bm-ioc1
