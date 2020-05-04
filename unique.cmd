@@ -25,4 +25,6 @@ epicsEnvSet("YSIZE",                    "960")
 epicsEnvSet("NELMT",                    "2457600")
 epicsEnvSet("NDTYPE",                   "Int16") #Int8
 epicsEnvSet("NDFTVL",                   "SHORT") #UCHAR
+epicsEnvSet("CBUFFS",                   "500")
 
+epicsEnvSet("SUPPORT_DIR", "/ad-nfs/epics/prod/Deb8/production")

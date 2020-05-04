@@ -1,70 +1,67 @@
-#!/epics/src/areaDetector-1-9-1/bin/linux-x86_64/prosilicaApp
-
+#!/ad-nfs/epics/prod/Deb8/production/areaDetector/ADProsilica/iocs/prosilicaIOC/bin/linux-x86_64/prosilicaApp st.cmd
 errlogInit(20000)
 
-< envPaths
 < unique.cmd
+< /ad-nfs/epics/prod/Deb8/production/envPaths
 
-dbLoadDatabase("$(AREA_DETECTOR)/dbd/prosilicaApp.dbd")
+dbLoadDatabase("$(ADPROSILICA)/iocs/prosilicaIOC/dbd/prosilicaApp.dbd")
 prosilicaApp_registerRecordDeviceDriver(pdbbase)
 
+# prosilicaConfig(portName,    # The name of the asyn port to be created
+#                 cameraId,    # Unique ID, IP address, or IP name of the camera
+#                 maxBuffers,  # Maximum number of NDArray buffers driver can allocate. 0=unlimited
+#                 maxMemory,   # Maximum memory bytes driver can allocate. 0=unlimited
+#                 priority,    # EPICS thread priority for asyn port driver 0=default
+#                 stackSize,   # EPICS thread stack size for asyn port driver 0=default
+#                 maxPvAPIFrames) # Number of frames to allocate in PvAPI driver. Default=2.
+# The simplest way to determine the uniqueId of a camera is to run the Prosilica GigEViewer application, 
+# select the camera, and press the "i" icon on the bottom of the main window to show the camera information for this camera. 
+# The Unique ID will be displayed on the first line in the information window.
 #prosilicaConfig("$(PORT)", "$(UID-NUM)", 50, 0)
 #prosilicaConfig("$(PORT)", "$(CAM-IP)", -1, -1)
-#prosilicaConfig("$(PORT)", "$(CAM-IP)", 0, 0)
-prosilicaConfig("$(PORT)", "$(CAM-IP)", 50, 0)
+#prosilicaConfig("$(PORT)", "$(CAM-IP)",  50, 0, 0, 0, 10)
+prosilicaConfig("$(PORT)", "$(CAM-IP)",  50, 0)
 
 asynSetTraceIOMask("$(PORT)",0,2)
+#asynSetTraceMask("$(PORT)",0,255)
 
-dbLoadRecords("$(AREA_DETECTOR)/db/ADBase.template",   "P=$(PREFIX),R=cam1:,PORT=$(PORT),ADDR=0,TIMEOUT=1")
-dbLoadRecords("$(AREA_DETECTOR)/db/NDFile.template",   "P=$(PREFIX),R=cam1:,PORT=$(PORT),ADDR=0,TIMEOUT=1")
-# Note that prosilica.template must be loaded after NDFile.template to replace the file format correctly
-dbLoadRecords("$(AREA_DETECTOR)/db/prosilica.template","P=$(PREFIX),R=cam1:,PORT=$(PORT),ADDR=0,TIMEOUT=1,TRSCAN=Passive")
+dbLoadRecords("$(ADPROSILICA)/db/prosilica.template","P=$(PREFIX),R=cam1:,PORT=$(PORT),ADDR=0,TIMEOUT=1")
+dbLoadRecords("/ad-nfs/epics/prod/Deb8/production/iocStats/db/iocAdminSoft.db", "IOC=$(CTPREFIX)")
 
 # Create a standard arrays plugin, set it to get data from first Prosilica driver.
 NDStdArraysConfigure("Image1", 5, 0, "$(PORT)", 0, 0)
-dbLoadRecords("$(AREA_DETECTOR)/db/NDPluginBase.template","P=$(PREFIX),R=image1:,PORT=Image1,ADDR=0,TIMEOUT=1,NDARRAY_PORT=$(PORT),NDARRAY_ADDR=0")
 
-# Use this line if you want to use the Prosilica in 8,12 or 16-bit modes.  
-#Prosilica GC1290/GT1290: 1280 * 960 = 1228800; MAX_ARRAY=2457600 Bytes
-#Prosilica Mako G-125B: 1292 * 964 = 1245488; MAX_ARRAY=2490976 Bytes
-#Prosilica GX1920: 1936 * 1456 = 2818816; MAX_ARRAY=5637632 Bytes
-dbLoadRecords("$(AREA_DETECTOR)/db/NDStdArrays.template", "P=$(PREFIX),R=image1:,PORT=Image1,ADDR=0,TIMEOUT=1,TYPE=Int16,FTVL=SHORT,NELEMENTS=$(NELMT)")
-#dbLoadRecords("$(AREA_DETECTOR)/db/NDStdArrays.template", "P=$(PREFIX),R=image1:,PORT=Image1,ADDR=0,TIMEOUT=1,NDARRAY_PORT=$(PORT),TYPE=Int8,FTVL=UCHAR,NELEMENTS=1228800")
+# Use (TYPE=Int8,FTVL=UCHAR), if you only want to use the Prosilica in 8-bit mode (or color mode). It uses an 8-bit waveform record
+# Use (TYPE=Int16,FTVL=SHORT), if you want to use the Prosilica in 8,12 or 16-bit modes.  
+# NELEMENTS is set large enough for a 1360x1024x3 image size, which is the number of pixels in RGB images from the GC1380C color camera. 
+# NELEMENTS is set large enough for a 1360x1024 image size, which is the number of pixels in B/W images from the GC1380B mono camera.
+# Must be at least as big as the maximum size of your camera images
+dbLoadRecords("$(ADCORE)/db/NDStdArrays.template", "P=$(PREFIX),R=image1:,PORT=Image1,ADDR=0,TIMEOUT=1,NDARRAY_PORT=$(PORT),TYPE=$(NDTYPE),FTVL=$(NDFTVL),NELEMENTS=$(NELMT)")
 
 # Load all other plugins using commonPlugins.cmd
-< commonPlugins.cmd
+< $(ADCORE)/iocBoot/commonPlugins.cmd
+set_requestfile_path("$(ADPROSILICA)/prosilicaApp/Db")
+set_requestfile_path("$(ADPROSILICA)/iocs/prosilicaIOC/iocBoot/iocProsilica")
 
-#remotely reboot the camera IOC if 'Ring buffer full...'
-dbLoadRecords ("$(EPICS_BASE)/db/iocAdminSoft.db", "IOC=$(CTPREFIX)")
-dbLoadRecords ("$(EPICS_BASE)/db/save_restoreStatus.db", "P=$(PREFIX)")
-save_restoreSet_status_prefix("$(PREFIX)")
-
-## autosave/restore machinery
-save_restoreSet_Debug(0)
-save_restoreSet_IncompleteSetsOk(1)
-save_restoreSet_DatedBackupFiles(1)
-
-set_savefile_path("$(TOP)/as/save")
-set_requestfile_path("$(TOP)")
-set_requestfile_path("$(TOP)/as/req")
-
-system("install -m 777 -d $(TOP)/as/save")
-system("install -m 777 -d $(TOP)/as/req")
-
-set_pass0_restoreFile("auto_settings.sav")
-set_pass1_restoreFile("auto_settings.sav")
+#system("install -m 777 -d $(TOP)/as/save")
+#system("install -m 777 -d $(TOP)/as/req")
 
 #access security
 #asSetFilename("/cf-update/acf/default.acf")
 
+#asynSetTraceMask("$(PORT)",0,255)
+#asynSetTraceMask("$(PORT)",0,9)
+asynSetTraceIOMask("$(PORT)",0,4)
+
 iocInit()
 
 #must be after iocInit()
+# save things every thirty seconds
 create_monitor_set("auto_settings.req", 30,"P=$(PREFIX)")
 
 # Channel Finder
 dbl > ./records.dbl
-#system("cp ./records.dbl /cf-update/$(HOSTNAME).$(IOCNAME).dbl")
+#system "cp ./records.dbl /cf-update/$(HOSTNAME).$(IOCNAME).dbl"
 
 # dbpf "$(PREFIX)cam1:GevSCPSPacketSiz", "8228"
 
