@@ -1,6 +1,8 @@
 #!/ad-nfs/epics/prod/Deb8/production/areaDetector/ADProsilica/iocs/prosilicaIOC/bin/linux-x86_64/prosilicaApp st.cmd
 errlogInit(20000)
 
+# Mercurial check
+
 < unique.cmd
 < /ad-nfs/epics/prod/Deb8/production/envPaths
 
